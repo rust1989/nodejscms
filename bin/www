@@ -1,0 +1,92 @@
+#!/usr/bin/env node
+var cluster=require("cluster");
+var fs=require("fs");
+if(cluster.isMaster){
+    let addWorker=function(){
+        console.log("start new worker");
+        let worker=cluster.fork();//创建一个子进程
+        worker.on('exit',arguments.callee);//子进程失败后，调用自身重启一个子进程
+    }
+    addWorker();
+    return;
+}
+process.on('uncaughtException',function(err){
+   console.log('Caught worker exception: ', err);
+    fs.writeFileSync('/crash.log',new Date()+":"+err.stack+'\n',{flag:'a'},function(){
+            process.exit(); // 退出当前进程
+    });
+});
+
+var app = require('../app');
+var http = require('http');
+/**
+ * 从环境获取端口.
+ */
+
+var port = normalizePort(process.env.PORT || '3000');
+app.set('port', port);
+var server = http.createServer(app);
+app.emit('servercreated',server);
+
+/**
+ * 创建Web服务器，并监听端口
+ */
+server.listen(port);
+server.on('error', onError); //指定发生错误时的事件
+server.on('listening', onListening); //当监听成功时的回调
+
+/**
+ * 规范化端口
+ */
+function normalizePort(val) {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+/**
+ * 错误事件监听
+ */
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  var bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+/**
+ * 当用户访问服务器成功时的回调
+ */
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  console.log('Server Version:0.0.1');
+  console.log('Server started! Listening on ' + bind);
+}
